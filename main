@@ -1,0 +1,45 @@
+from flask import Flask, render_template, url_for
+import requests
+import pytz
+from datetime import datetime
+
+
+api_key = "227ba7d5f47c6eb6857061d76a7611a9"
+api_key2 = "9ca9d4b254f4480a64d03c25ba380a99"
+base_url = "http://api.openweathermap.org/data/2.5/weather?"
+url = 'http://api.weatherstack.com/current'
+app = Flask(__name__)
+
+
+@app.route('/weather/<city>')
+def index(city):
+    res = requests.get(base_url, params={'q': city, 'type': 'like', 'units': 'metric', 'APPID': api_key})
+    res2 = requests.get(url, params={'access_key': api_key2, 'query': city})
+
+    weather = res.json()
+    weather2 = res2.json()
+
+    icon_weather = f"http://openweathermap.org/img/wn/{weather['weather'][0]['icon']}.png"
+    town = weather['name']
+    time = datetime.now(pytz.timezone('Europe/Moscow')).strftime('%I:%M %p')
+    temperature = weather2['current']['temperature']
+    descriptions = weather['weather'][0]['description'].capitalize()
+    feels_like = weather2['current']['feelslike']
+    speed_wind = weather['wind']['speed']
+    humidity = weather['main']['humidity']
+    pressure = weather['main']['pressure']
+    if int(feels_like) > 0:
+        feels_like = f'+{feels_like}'
+    if int(temperature) > 0:
+        temperature = f'+{temperature}'
+    print(temperature)
+    print(weather)
+    print(weather2)
+    return render_template('design.html', img=url_for('static', filename='img/clouds2.jpeg'), icon=icon_weather,
+                           title='Погода', temperature=temperature, descriptions=descriptions, feels_like=feels_like,
+                           wind_speed=weather['wind']['speed'], id_city=town, time=time, speed_wind=speed_wind,
+                           humidity=humidity, pressure=pressure)
+
+
+if __name__ == '__main__':
+    app.run(port=8080, host='127.0.0.1', debug=True)

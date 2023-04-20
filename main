@@ -1,4 +1,4 @@
-from data import db_session, news_api
+from data import db_session
 from data.usersex import User
 from data.jobsex import Jobs
 from forms.userex import RegisterForm
@@ -144,7 +144,6 @@ def city_weather(city):
 
 def main():
     db_session.global_init("db/blogs.db")
-    app.register_blueprint(news_api.blueprint)
     app.run()
 
 

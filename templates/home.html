@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header>
+  <style>
+        .card {
+        width: 70%;
+        margin: auto;
+        margin-top: 2rem;
+        }
+        img {
+          display: block;
+          max-width: 70%;
+          height: auto;
+        }
+  </style>
+</header>
+<div class="card">
+  {% if current_user.is_authenticated %}
+    <div class="card-body p-10 m-15">
+        <div class="row align-items-center">
+          <div class="col-5">
+            <div class="weather_icon">
+              <div class="icon">
+                <img src="{{ img }}">
+              </div>
+            </div>
+          </div>
+          <div class="col">
+            <div class="user_login_name">
+              <h3 class="card-text">
+                  <strong>Login name: </strong>
+                  <a class="navbar-brand" href="/logout">{{ current_user.login_name }}</a>
+              </h3>
+            </div>
+            <div class="user_date">
+               <h3 class="card-text"><strong>Age: </strong>{{ current_user.age }}</h3>
+            </div>
+            <div class="user_date">
+               <h3 class="card-text"><strong>Email: </strong>{{ current_user.email }}</h3>
+            </div>
+            <div class="user_city">
+                <h3 class="card1-text"><strong>City:</strong> {{ current_user.city }}</h3>
+            </div>
+            <div class="user_date">
+               <h3 class="card-text"><strong>Account creation date: </strong>{{ current_user.account_creation_date }}</h3>
+            </div>
+          </div>
+        </div>
+    </div>
+  {% else %}
+        <p>
+            <a class="btn btn-primary " href="/register">Register</a>
+            <a class="btn btn-success" href="/login">Log in</a>
+        </p>
+  {% endif %}
+</div>
+{% endblock %}

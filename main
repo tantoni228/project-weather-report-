@@ -1,30 +1,120 @@
-from flask import Flask, render_template, url_for
+from data import db_session, news_api
+from data.usersex import User
+from data.jobsex import Jobs
+from forms.userex import RegisterForm
+from flask_login import LoginManager, login_user, login_required, logout_user
+from flask_wtf import FlaskForm
+from wtforms import PasswordField, BooleanField, SubmitField, StringField, IntegerField, EmailField
+from wtforms.validators import DataRequired
+import datetime
 import requests
 import pytz
-from datetime import datetime
 
 
-api_key = "227ba7d5f47c6eb6857061d76a7611a9"
-api_key2 = "9ca9d4b254f4480a64d03c25ba380a99"
-base_url = "http://api.openweathermap.org/data/2.5/weather?"
-url = 'http://api.weatherstack.com/current'
 app = Flask(__name__)
+api_key = "227ba7d5f47c6eb6857061d76a7611a9"
+base_url = "http://api.openweathermap.org/data/2.5/weather?"
+app.config['SECRET_KEY'] = 'yandеxlyceum_secret_key'
+login_manager = LoginManager()
+login_manager.init_app(app)
 
 
-@app.route('/weather/<city>')
-def index(city):
-    res = requests.get(base_url, params={'q': city, 'type': 'like', 'units': 'metric', 'APPID': api_key})
-    res2 = requests.get(url, params={'access_key': api_key2, 'query': city})
+@login_manager.user_loader
+def load_user(user_id):
+    db_sess = db_session.create_session()
+    return db_sess.query(User).get(user_id)
+
+@app.route("/", methods=['GET', 'POST'])
+def index():
+    if request.method == 'POST':
+        query = request.form['query']
+        return redirect(fr'weather/{query}')
+
+    db_sess = db_session.create_session()
+    return render_template("home.html", img=url_for('static', filename='img/man.png'))
+
+
+class LoginForm(FlaskForm):
+    email = EmailField('Email', validators=[DataRequired()])
+    password = PasswordField('Password', validators=[DataRequired()])
+    remember_me = BooleanField('Remember me')
+    submit = SubmitField('Log in')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect("/")
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    form = LoginForm()
+    if form.validate_on_submit():
+        db_sess = db_session.create_session()
+        user = db_sess.query(User).filter(User.email == form.email.data).first()
+        if user and user.check_password(form.password.data):
+            login_user(user, remember=form.remember_me.data)
+            return redirect("/")
+        return render_template('login.html',
+                               message="Incorrect login or password",
+                               form=form)
+    return render_template('login.html', title='Authorization', form=form)
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def reqister():
+    form = RegisterForm()
+    if form.validate_on_submit():
+        db_sess = db_session.create_session()
+        if db_sess.query(User).filter(User.email == form.email.data).first():
+            return render_template('register.html', title='Register',
+                                   form=form,
+                                   message="There is already such a user")
+        data = datetime.datetime.now().strftime('%d:%m:%Y')
+        print(data)
+        user = User(
+            login_name=form.login_name.data,
+            email=form.email.data,
+            age=form.age.data,
+            city=form.city.data,
+            account_creation_date=data,
+            password=form.password.data
+        )
+        user.set_password(form.password.data)
+        db_sess.add(user)
+        db_sess.commit()
+        return redirect('/login')
+    return render_template('register.html', title='Register', form=form)
+
+@app.route('/weather')
+def weather():
+    res = requests.get(f'http://api.openweathermap.org/data/2.5/group?id=524901,498817,491422,501175,472757,520555,1496747&units=metric&appid={api_key}')
 
     weather = res.json()
-    weather2 = res2.json()
+    town1 = []
+    data = weather['list']
+    print(data)
+    for index, value in enumerate(data):
+        town1.append({})
+        town1[index]['city'] = data[index]['name']
+        temperature = int(round(data[index]['main']['temp'], 0))
+        town1[index]['temp'] = f'+{temperature}' if temperature > 0 else temperature
+        town1[index]['image'] = f"http://openweathermap.org/img/wn/{data[index]['weather'][0]['icon']}.png"
+    return render_template("design2.html", data=town1)
 
+@app.route('/weather/<city>')
+def city_weather(city):
+    res = requests.get(base_url, params={'q': city, 'type': 'like', 'units': 'metric', 'APPID': api_key})
+
+    weather = res.json()
+    print(weather)
     icon_weather = f"http://openweathermap.org/img/wn/{weather['weather'][0]['icon']}.png"
+    filename = f"img/{weather['weather'][0]['icon']}.png"
     town = weather['name']
-    time = datetime.now(pytz.timezone('Europe/Moscow')).strftime('%I:%M %p')
-    temperature = weather2['current']['temperature']
+    time = datetime.datetime.now(pytz.timezone('Europe/Moscow')).strftime('%I:%M %p')
+    temperature = int(round(weather['main']['temp'], 0))
     descriptions = weather['weather'][0]['description'].capitalize()
-    feels_like = weather2['current']['feelslike']
+    feels_like = int(round(weather['main']['feels_like'], 0))
     speed_wind = weather['wind']['speed']
     humidity = weather['main']['humidity']
     pressure = weather['main']['pressure']
@@ -32,14 +122,31 @@ def index(city):
         feels_like = f'+{feels_like}'
     if int(temperature) > 0:
         temperature = f'+{temperature}'
-    print(temperature)
-    print(weather)
-    print(weather2)
-    return render_template('design.html', img=url_for('static', filename='img/clouds2.jpeg'), icon=icon_weather,
+    response = requests.get("http://api.openweathermap.org/data/2.5/forecast",
+                           params={'q': city, 'units': 'metric', 'APPID': api_key, 'cnt': 6})
+    data = response.json()
+    table = []
+    for i in data['list']:
+        icon = f"http://openweathermap.org/img/wn/{i['weather'][0]['icon']}.png"
+        temp = int(round(i['main']['temp'], 0))
+        if temp > 0:
+            temp = f"+{temp}"
+        time2 = i['dt_txt'].split()
+        time2 = time2[1].split(':')
+        time2 = f"{time2[0]}:00"
+        table.append([str(temp), icon, time2])
+    print(table)
+    return render_template('design.html', img=url_for('static', filename=filename), icon=icon_weather,
                            title='Погода', temperature=temperature, descriptions=descriptions, feels_like=feels_like,
                            wind_speed=weather['wind']['speed'], id_city=town, time=time, speed_wind=speed_wind,
-                           humidity=humidity, pressure=pressure)
+                           humidity=humidity, pressure=pressure, table=table)
 
 
-if __name__ == '__main__':
-    app.run(port=8080, host='127.0.0.1', debug=True)
+def main():
+    db_session.global_init("db/blogs.db")
+    app.register_blueprint(news_api.blueprint)
+    app.run()
+
+
+if __name__ == "__main__":
+    main()
